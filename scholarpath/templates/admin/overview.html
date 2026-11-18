@@ -1,0 +1,47 @@
+{% extends "app.html" %}
+{% block title %}Overview | {{ app_name }}{% endblock %}
+{% block main %}
+<div class="page-head"><div><h1>Overview</h1>
+  <p>The state of the system: which model is answering predictions, and how it is being used.</p></div></div>
+<div class="stack">
+  <div class="tiles4">
+    <div><div class="k">Predictions</div><div class="v">{{ counts.predictions | num }}</div></div>
+    <div><div class="k">Accounts</div><div class="v">{{ counts.users | num }}</div></div>
+    <div><div class="k">Datasets</div><div class="v">{{ counts.datasets | num }}</div></div>
+    <div><div class="k">Model versions</div><div class="v">{{ counts.models | num }}</div></div>
+  </div>
+  <div class="cols">
+    <section class="panel s7">
+      <h2>Model in use</h2>
+      {% if model %}
+      <p>Version {{ model.version }}, trained {{ model.created_at | when }} on "{{ model.dataset.name }}".</p>
+      <dl class="kv" style="margin-bottom:18px">
+        <div><dt>Accuracy on test records</dt><dd>{{ report.metrics.accuracy | pct }}</dd></div>
+        <div><dt>Macro F1-score</dt><dd>{{ report.metrics.macro.f1 | pct }}</dd></div>
+        <div><dt>Records tested</dt><dd>{{ report.split.test | num }}</dd></div>
+        <div><dt>Tree size</dt><dd>{{ report.tree.leaves }} leaves, depth {{ report.tree.depth }}</dd></div>
+      </dl>
+      <div class="actions"><a class="btn sm" href="{{ url_for('admin.model', mid=model.id) }}">See the evaluation</a>
+        <a class="btn line sm" href="{{ url_for('admin.models') }}">Train another</a></div>
+      {% else %}
+      <p>Nothing is active, so predictions are switched off.</p><a class="btn yellow" href="{{ url_for('admin.models') }}">Train a model</a>
+      {% endif %}
+    </section>
+    <section class="panel s5">
+      <h2>Predictions by tier</h2><p>Across all accounts.</p>
+      {% set total = counts.predictions or 1 %}
+      <ul class="hbars">{% for t, n in tier_counts.items() %}<li title="Tier {{ t }}: {{ n }}"><span>{{ m.dot(t, 'Tier ' ~ t) }}</span><span class="t"><span class="f" style="--w: {{ (n / total * 100) | round(1) }}%"></span></span><span class="v">{{ n }}</span></li>{% endfor %}</ul>
+    </section>
+    <section class="s7"><h2 style="font-size:1.25rem">Most recent predictions</h2>
+      {% if recent %}<div class="table"><table class="t">
+        <thead><tr><th>Student</th><th>Class</th><th>By</th><th>When</th></tr></thead>
+        <tbody>{% for p in recent %}<tr><td><a class="lead" href="{{ url_for('predict.result', pid=p.id) }}">{{ p.reference or 'Unnamed student' }}</a></td><td>{{ m.dot(p.tier, p.label) }}</td><td>{{ p.user.name }}</td><td class="muted">{{ p.created_at | when }}</td></tr>{% endfor %}</tbody>
+      </table></div>{% else %}<div class="empty"><p>No one has made a prediction yet.</p></div>{% endif %}
+    </section>
+    <section class="s5"><h2 style="font-size:1.25rem">Newest accounts</h2>
+      <div class="table"><table class="t"><thead><tr><th>Name</th><th>Type</th></tr></thead>
+        <tbody>{% for u in users %}<tr><td><b>{{ u.name }}</b><br><span class="muted small">{{ u.email }}</span></td><td>{{ u.occupation }}</td></tr>{% endfor %}</tbody></table></div>
+    </section>
+  </div>
+</div>
+{% endblock %}

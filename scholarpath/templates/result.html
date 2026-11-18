@@ -1,0 +1,88 @@
+{% extends "app.html" %}
+{% block title %}{{ p.label }} | Prediction {{ p.id }} | {{ app_name }}{% endblock %}
+{% block main %}
+<div class="page-head">
+  <div><p class="crumb"><a href="{{ url_for('predict.history') }}">Saved predictions</a> / No. {{ p.id }}</p>
+    <h1>{{ p.reference or 'Unnamed student' }}</h1>
+    <p>{{ p.institution_type }}, predicted {{ p.created_at | when }} with model v{{ p.model.version }}.</p></div>
+  <div class="actions">
+    <a class="btn line sm" href="{{ url_for('predict.pdf', pid=p.id) }}">{{ m.icon('download') }} Save as PDF</a>
+    <a class="btn sm" href="{{ url_for('predict.new') }}">{{ m.icon('plus') }} New prediction</a>
+  </div>
+</div>
+
+<div class="stack">
+  <section class="verdict-card" aria-labelledby="cls">
+    <div class="left c{{ p.tier }}">
+      <p>On course for</p>
+      <h2 class="cls" id="cls">{{ p.label }}</h2>
+      <p class="mean">{{ vm.meaning }}.</p>
+    </div>
+    <div class="right">
+      <div class="agree"><b>{{ p.confidence | pct(0) }}</b><span>of the {{ r.leaf_samples }} training records that took the same route through the tree ended in this class.</span></div>
+      <div>
+        <div class="scale5" style="--pos: {{ 6 - p.tier }}" role="img" aria-label="{{ p.label }} is tier {{ p.tier }} of 5, where 1 is the highest">
+          <span class="mark"></span><i class="c5"></i><i class="c4"></i><i class="c3"></i><i class="c2"></i><i class="c1"></i>
+        </div>
+        <div class="scale5-labels">{% for b in vm.bands | reverse %}<span {% if b.tier == p.tier %}class="on"{% endif %}>{{ b.label }}<br>{{ '%.2f' | format(b.min) }}+</span>{% endfor %}</div>
+      </div>
+    </div>
+  </section>
+
+  <div class="callout plain">{{ m.icon('info') }}<p>A prediction, not a result. It is there to help a lecturer or course adviser decide who needs attention, and it does not replace the institution's grading.</p></div>
+
+  <div class="cols">
+    <div class="s7 stack">
+    <section class="panel" aria-labelledby="route-h">
+      <h2 id="route-h">The questions the tree asked</h2>
+      <p>{{ r.path | length }} test{{ 's' if r.path | length != 1 }} between the root and the leaf. Each row is one the record satisfied.</p>
+      <table class="route" id="route">
+        <thead><tr><th><span class="sr-only">Step</span></th><th>Test satisfied</th><th style="text-align:right">Value entered</th></tr></thead>
+        <tbody>
+          {% for s in r.path %}<tr><td><span class="n">{{ loop.index }}</span></td><td>{{ s.text }}</td><td class="val">{{ s.value or '' }}</td></tr>{% endfor %}
+          <tr class="end"><td><span class="n" aria-hidden="true">=</span></td><td>{{ p.label }}</td><td class="val">leaf of {{ r.leaf_samples }}</td></tr>
+        </tbody>
+      </table>
+    </section>
+    <section class="panel" aria-labelledby="todo-h">
+      <h2 id="todo-h">Recommended next steps</h2>
+      <p>These come from fixed rules applied to the values entered, not from the Decision Tree.</p>
+      <ul class="todo">{% for rec in r.recommendations %}<li><span class="cb" aria-hidden="true"></span><div><h4>{{ rec.title }}{% if rec.on_path %}<span class="tag path">tree tested this</span>{% endif %}</h4><p>{{ rec.advice }}</p></div></li>{% endfor %}</ul>
+    </section>
+    </div>
+    <div class="s5 stack">
+      <section class="panel whatif" id="whatif" aria-labelledby="wi-h" data-inputs='{{ p.inputs | tojson }}' data-label="{{ p.label }}" data-url="{{ url_for('predict.api_whatif') }}" data-csrf="{{ csrf_token }}">
+        <h2 id="wi-h">What if something changed?</h2>
+        <p>Move a value and the model is asked again. Nothing here is saved.</p>
+        {% set i = p.inputs %}
+        <div class="slide"><label for="w-attendance_rate">Lecture attendance</label><output for="w-attendance_rate">{{ i.attendance_rate | g }}%</output>
+          <input type="range" id="w-attendance_rate" data-w="attendance_rate" data-suffix="%" min="0" max="100" step="1" value="{{ i.attendance_rate }}"></div>
+        <div class="slide"><label for="w-study_hours">Private study</label><output for="w-study_hours">{{ i.study_hours | g }} hrs/week</output>
+          <input type="range" id="w-study_hours" data-w="study_hours" data-suffix=" hrs/week" min="0" max="60" step="1" value="{{ i.study_hours }}"></div>
+        <div class="slide"><label for="w-ca_score">Continuous assessment</label><output for="w-ca_score">{{ i.ca_score | g }} of 30</output>
+          <input type="range" id="w-ca_score" data-w="ca_score" data-suffix=" of 30" min="0" max="30" step="0.5" value="{{ i.ca_score }}"></div>
+        <div class="slide"><label for="w-test_score">Test average</label><output for="w-test_score">{{ i.test_score | g }}%</output>
+          <input type="range" id="w-test_score" data-w="test_score" data-suffix="%" min="0" max="100" step="1" value="{{ i.test_score }}"></div>
+        <div class="slide"><label for="w-carryovers">Outstanding carryovers</label><output for="w-carryovers">{{ i.carryovers }}</output>
+          <input type="range" id="w-carryovers" data-w="carryovers" data-suffix="" min="0" max="12" step="1" value="{{ i.carryovers }}"></div>
+        <div class="out" id="wi-out" aria-live="polite">
+          <p class="k">With these values</p><p class="v" id="wi-label">{{ p.label }}</p><p class="small" id="wi-note">Same as the saved prediction.</p>
+        </div>
+        <p style="margin:12px 0 0"><button class="btn line sm" type="button" id="wi-reset">Reset to the saved values</button></p>
+      </section>
+      <section class="panel" aria-labelledby="share-h">
+        <h2 id="share-h">How the matching records were spread</h2>
+        <p>The {{ r.leaf_samples }} training records in the same leaf, by class.</p>
+        <ul class="share">{% for x in vm.probs %}<li class="{% if x.tier == p.tier %}top{% endif %}" title="{{ x.label }}: {{ x.p | pct }}"><span>{{ x.label }}</span><span class="v">{{ x.p | pct(0) }}</span><span class="t"><span class="f" style="--w: {{ (x.p * 100) | round(1) }}%"></span></span></li>{% endfor %}</ul>
+      </section>
+      <section class="panel" aria-labelledby="in-h">
+      <h2 id="in-h">The record as entered</h2>
+      <p>Kept exactly as submitted.</p>
+      <dl class="kv">{% for row in vm.rows %}<div><dt>{{ row.label }}</dt><dd>{{ row.value }}</dd></div>{% endfor %}</dl>
+      <form method="post" action="{{ url_for('predict.delete', pid=p.id) }}" style="margin-top:18px" data-confirm="Delete this prediction? This cannot be undone.">
+        {{ m.csrf() }}<button class="btn red sm" type="submit">{{ m.icon('trash') }} Delete this prediction</button></form>
+    </section>
+    </div>
+  </div>
+</div>
+{% endblock %}

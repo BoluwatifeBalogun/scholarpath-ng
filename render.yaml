@@ -1,0 +1,18 @@
+services:
+  - type: web
+    name: scholarpath-ng
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --workers 1 --timeout 120
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_EMAIL
+        value: admin@scholarpath.ng
+      - key: ADMIN_PASSWORD
+        sync: false
+      # Free web services lose local files on every restart. Point this at a
+      # free PostgreSQL database (Render, Neon or Supabase) so accounts,
+      # datasets, models and predictions survive.
+      - key: DATABASE_URL
+        sync: false

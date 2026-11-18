@@ -1,0 +1,86 @@
+{% extends "app.html" %}
+{% block title %}Model version {{ mv.version }} | {{ app_name }}{% endblock %}
+{% block main %}
+{% set mt = report.metrics %}{% set p = report.params %}
+<div class="page-head"><div>
+  <p class="crumb"><a href="{{ url_for('admin.models') }}">Models</a> / Version {{ mv.version }}</p>
+  <h1>Version {{ mv.version }} {% if mv.is_active %}<span class="tag on" style="vertical-align:middle">In use</span>{% else %}<span class="tag" style="vertical-align:middle">Standby</span>{% endif %}</h1>
+  <p>Trained {{ mv.created_at | when }} on "{{ mv.dataset.name }}" in {{ report.seconds }} s. It has answered {{ used | num }} prediction{{ 's' if used != 1 }}.</p></div>
+  <div class="actions">
+    <a class="btn line sm" href="{{ url_for('admin.model_download', mid=mv.id) }}">{{ m.icon('download') }} Joblib file</a>
+    {% if not mv.is_active %}<form method="post" action="{{ url_for('admin.model_activate', mid=mv.id) }}">{{ m.csrf() }}<button class="btn yellow sm" type="submit">Put this version in use</button></form>{% endif %}
+  </div>
+</div>
+<div class="stack">
+  {% if mv.dataset.simulated %}<div class="callout">{{ m.icon('info') }}<p>This version was tested on <strong>simulated</strong> records. The figures prove the pipeline runs correctly. They do not show how accurate it would be on real students.</p></div>{% endif %}
+  <div class="tiles4">
+    <div><div class="k">Accuracy</div><div class="v">{{ mt.accuracy | pct }}</div><div class="s">{{ mt.tested | num }} test records</div></div>
+    <div><div class="k">Precision</div><div class="v">{{ mt.macro.precision | pct }}</div><div class="s">macro, weighted {{ mt.weighted.precision | pct }}</div></div>
+    <div><div class="k">Recall</div><div class="v">{{ mt.macro.recall | pct }}</div><div class="s">macro, weighted {{ mt.weighted.recall | pct }}</div></div>
+    <div><div class="k">F1-score</div><div class="v">{{ mt.macro.f1 | pct }}</div><div class="s">macro, weighted {{ mt.weighted.f1 | pct }}</div></div>
+  </div>
+  <div class="cols">
+    <section class="panel s6" aria-labelledby="cm-h">
+      <h2 id="cm-h">Confusion matrix</h2>
+      <p>Actual tier down the side, predicted tier across the top. Yellow-framed cells are correct predictions.</p>
+      <div class="cm" role="table" aria-label="Confusion matrix">
+        <div class="h"></div>{% for t in tiers %}<div class="h">Pred.<br>tier {{ t }}</div>{% endfor %}
+        {% for row in cm %}{% set ri = loop.index0 %}
+          <div class="h">Actual<br>tier {{ tiers[ri] }}</div>
+          {% for n in row %}{% set a = n / row_totals[ri] %}
+          <div class="c {% if a > 0.45 %}hi{% endif %} {% if loop.index0 == ri %}diag{% endif %}" style="--shade: {{ (a * 0.88 + (0.05 if n else 0)) | round(3) }}" title="Actual tier {{ tiers[ri] }}, predicted tier {{ tiers[loop.index0] }}: {{ n }} records, {{ (a * 100) | round(1) }}% of the row">{{ n }}<small>{{ (a * 100) | round | int }}%</small></div>
+          {% endfor %}
+        {% endfor %}
+      </div>
+      <p class="small muted" style="margin:10px 0 0">Darker means a larger share of that row. {{ mt.adjacent_error_share | pct(1) }} of the wrong predictions miss by one tier.</p>
+    </section>
+    <div class="s6 stack">
+      <section class="panel">
+        <h2>Per-class scores</h2><p>Tiers are numbered because their names change with institution type.</p>
+        <div class="table"><table class="t mini">
+          <thead><tr><th>Tier</th><th class="r">Precision</th><th class="r">Recall</th><th class="r">F1</th><th class="r">Tested</th></tr></thead>
+          <tbody>{% for c in mt.per_class %}<tr><td>{{ m.dot(c.tier, 'Tier ' ~ c.tier) }}</td><td class="r">{{ c.precision | pct }}</td><td class="r">{{ c.recall | pct }}</td><td class="r">{{ c.f1 | pct }}</td><td class="r">{{ c.support | num }}</td></tr>{% endfor %}</tbody>
+        </table></div>
+      </section>
+      <section class="panel">
+        <h2>Accuracy by institution type</h2><p>The same test records, grouped.</p>
+        <ul class="hbars">{% for b in report.by_type %}<li title="{{ b.type }}: {{ b.accuracy | pct }} of {{ b.tested }} records"><span>{{ b.type }}</span><span class="t"><span class="f" style="--w: {{ (b.accuracy * 100) | round(1) }}%"></span></span><span class="v">{{ b.accuracy | pct(0) }}</span></li>{% endfor %}</ul>
+      </section>
+    </div>
+    <section class="panel s12" aria-labelledby="tree-h">
+      <h2 id="tree-h">Top of the tree</h2>
+      <p>The first three levels of {{ report.tree.depth }}. The whole tree has {{ report.tree.nodes }} nodes and {{ report.tree.leaves }} leaves. Go left when the test is true.</p>
+      <div class="tree-view" id="tree-view" data-tree='{{ report.tree.structure | tojson }}'></div>
+      <details style="margin-top:14px"><summary>Every rule, as text</summary>
+        <pre class="rules">{{ report.tree.rules }}</pre>
+        <p style="margin-top:10px"><a href="{{ url_for('admin.model_rules', mid=mv.id) }}">Download as a text file</a></p></details>
+    </section>
+    <section class="panel s6">
+      <h2>Inputs the tree leans on</h2><p>Share of the total impurity reduction each input accounts for.</p>
+      <ul class="hbars">{% for f in report.tree.importances %}<li title="{{ f.label }}: {{ f.importance | pct }}"><span>{{ f.label }}</span><span class="t"><span class="f" style="--w: {{ (f.importance / report.tree.importances[0].importance * 100) | round(1) }}%"></span></span><span class="v">{{ f.importance | pct }}</span></li>{% endfor %}</ul>
+    </section>
+    <section class="panel s6">
+      <h2>Training record</h2><p>Everything needed to rebuild this exact version.</p>
+      <dl class="kv">
+        <div><dt>Algorithm</dt><dd>CART Decision Tree, scikit-learn {{ report.sklearn_version }}</dd></div>
+        <div><dt>Split quality measure</dt><dd>{{ 'Gini impurity' if p.criterion == 'gini' else 'Entropy (information gain)' }}</dd></div>
+        <div><dt>Deepest level allowed</dt><dd>{{ p.max_depth }}</dd></div>
+        <div><dt>Fewest records in a leaf</dt><dd>{{ p.min_samples_leaf }}</dd></div>
+        <div><dt>Training / test records</dt><dd>{{ report.split.train | num }} / {{ report.split.test | num }}, stratified</dd></div>
+        <div><dt>Accuracy on training records</dt><dd>{{ report.train_accuracy | pct }}</dd></div>
+        <div><dt>Drop from training to test</dt><dd>{{ ((report.train_accuracy - mt.accuracy) * 100) | round(1) }} points</dd></div>
+        <div><dt>Settings picked by</dt><dd>{% if report.tuning %}Grid search, {{ report.tuning.candidates }} candidates, {{ report.tuning.cv_folds }}-fold CV{% else %}Administrator{% endif %}</dd></div>
+        {% if report.tuning %}<div><dt>Best cross-validated macro F1</dt><dd>{{ report.tuning.best_cv_score | pct }}</dd></div>{% endif %}
+        <div><dt>Random seed</dt><dd>42</dd></div>
+      </dl>
+      <h2 style="font-size:1.05rem;margin-top:20px">Records per tier</h2>
+      {% set mx = report.split.class_counts.values() | max %}
+      <ul class="hbars">{% for t, n in report.split.class_counts.items() %}<li title="Tier {{ t }}: {{ n }} records"><span>{{ m.dot(t | int, 'Tier ' ~ t) }}</span><span class="t"><span class="f" style="--w: {{ (n / mx * 100) | round(1) }}%"></span></span><span class="v">{{ n | num }}</span></li>{% endfor %}</ul>
+    </section>
+  </div>
+  {% if not mv.is_active and not used %}
+  <form method="post" action="{{ url_for('admin.model_delete', mid=mv.id) }}" data-confirm="Delete version {{ mv.version }}? This cannot be undone.">{{ m.csrf() }}
+    <button class="btn red sm" type="submit">{{ m.icon('trash') }} Delete this version</button></form>
+  {% endif %}
+</div>
+{% endblock %}

@@ -1,0 +1,10 @@
+{% extends "public.html" %}
+{% block title %}{{ title }} | {{ app_name }}{% endblock %}
+{% block main %}
+<div class="errpage"><div>
+  <div class="code" aria-hidden="true">{{ code }}</div>
+  <h1>{{ title }}</h1>
+  <p class="lede" style="margin-inline:auto">{{ message }}</p>
+  <p><a class="btn yellow" href="{{ url_for('public.home') }}">Back to the home page</a></p>
+</div></div>
+{% endblock %}

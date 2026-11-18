@@ -1,0 +1,78 @@
+{% extends "app.html" %}
+{% block title %}New prediction | {{ app_name }}{% endblock %}
+
+{% macro field(f) %}
+{% set name = f.name %}{% set val = values.get(name, '') %}{% set e = errors.get(name) %}
+<div class="field {% if e %}invalid{% endif %}" data-field="{{ name }}">
+  {% if f.kind in ('nominal', 'ordinal') %}
+    <span class="label" id="{{ name }}-label">{{ f.label }}</span>
+    <div class="tiles" role="radiogroup" aria-labelledby="{{ name }}-label" aria-describedby="{{ name }}-help {{ name }}-error">
+      {% for c in f.choices %}<label><input type="radio" name="{{ name }}" value="{{ c }}" {% if val == c %}checked{% endif %} required>{{ c }}</label>{% endfor %}
+    </div>
+  {% else %}
+    <label for="{{ name }}">{{ f.label }}</label>
+    <div class="unit-wrap">
+      <input class="input num" id="{{ name }}" name="{{ name }}" type="number" inputmode="{{ 'numeric' if f.kind == 'int' else 'decimal' }}"
+             min="{{ f.min }}" max="{{ f.max }}" step="{{ '1' if f.kind == 'int' else ('0.01' if name == 'previous_gpa' else '0.1') }}"
+             value="{{ val }}" aria-describedby="{{ name }}-help {{ name }}-error" required>
+      {% if f.unit or name == 'previous_gpa' %}<span class="unit" data-unit="{{ name }}">{{ f.unit or 'GPA' }}</span>{% endif %}
+    </div>
+  {% endif %}
+  <p class="help" id="{{ name }}-help">{{ f.help }}</p>
+  <p class="error" id="{{ name }}-error" role="alert">{% if e %}{{ m.icon('alert') }}{{ e }}{% endif %}</p>
+</div>
+{% endmacro %}
+
+{% block main %}
+<div class="page-head">
+  <div><h1>New prediction</h1>
+    <p>One student, twelve values. The tree may test any of them, so none can be left blank.</p></div>
+  {% if model %}<span class="tag">Model v{{ model.version }}, {{ model.accuracy | pct }} accurate on test data</span>{% endif %}
+</div>
+
+{% if not model %}<div class="callout bad" style="margin-bottom:20px">{{ m.icon('alert') }}<p>No trained model is active, so predictions are switched off. An administrator needs to train one and make it active.</p></div>{% endif %}
+
+<form method="post" id="predict-form" novalidate data-config='{{ config_json }}'>
+  {{ m.csrf() }}
+  {% if errors %}
+  <div class="problems" role="alert" tabindex="-1" id="problems">
+    <h2>Fix {{ errors | length }} item{{ 's' if errors | length != 1 }} to get a prediction</h2>
+    <ul>{% for name, msg in errors.items() %}<li>{% if name == '_form' %}{{ msg }}{% else %}<a href="#{{ name }}" data-goto="{{ name }}">{{ msg }}</a>{% endif %}</li>{% endfor %}</ul>
+  </div>
+  {% endif %}
+
+  <div class="toolbar js-only" hidden>
+    <span>New here? Load an example and edit it:</span>
+    <button class="btn line sm" type="button" data-sample="strong">High-performing student</button>
+    <button class="btn line sm" type="button" data-sample="at_risk">Struggling student</button>
+    <button class="btn line sm" type="button" data-clear>Clear the form</button>
+  </div>
+
+  {% for key, title, sub in groups %}
+  {% set fs = features | selectattr('group', 'equalto', key) | list %}
+  <section class="form-sec" data-sec aria-labelledby="sec-{{ key }}">
+    <header><span class="n" aria-hidden="true">{{ loop.index }}</span>
+      <div><h2 id="sec-{{ key }}">{{ title }}</h2><p>{{ sub }}</p></div>
+      <span class="count" data-count-for><span data-done>0</span> of {{ fs | length }}</span></header>
+    <div class="body">
+      {% if loop.first %}
+      <div class="field">
+        <label for="reference">Student name or matric number <span class="muted" style="font-weight:400">(optional)</span></label>
+        <input class="input" id="reference" name="reference" maxlength="120" value="{{ values.get('reference', '') }}" autocomplete="off" aria-describedby="reference-help">
+        <p class="help" id="reference-help">Only used to label the saved prediction. The model never sees it.</p>
+      </div>
+      {% endif %}
+      {% for f in fs if f.kind in ('nominal', 'ordinal') and key == 'programme' %}{{ field(f) }}{% endfor %}
+      <div class="grid2">{% for f in fs if f.kind not in ('nominal', 'ordinal') %}{{ field(f) }}{% endfor %}</div>
+      {% for f in fs if f.kind in ('nominal', 'ordinal') and key != 'programme' %}{{ field(f) }}{% endfor %}
+    </div>
+  </section>
+  {% endfor %}
+
+  <div class="submit-bar">
+    <div class="meter"><b><span id="filled">0</span> of {{ features | length }} values entered</b>
+      <div class="track" aria-hidden="true"><span class="fill" id="fill"></span></div></div>
+    <button class="btn yellow" type="submit" {% if not model %}disabled{% endif %}>Get prediction {{ m.icon('arrow') }}</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,55 @@
+{% extends "app.html" %}
+{% block title %}{{ ds.name }} | {{ app_name }}{% endblock %}
+{% block main %}
+{% set c = report.cleaning %}{% set i = report.inspection %}
+<div class="page-head"><div>
+  <p class="crumb"><a href="{{ url_for('admin.datasets') }}">Datasets</a> / No. {{ ds.id }}</p>
+  <h1>{{ ds.name }}</h1>
+  <p>{% if ds.simulated %}<span class="tag sim">Simulated</span> {% endif %}{{ ds.note }}</p></div>
+  <div class="actions">
+    <a class="btn line sm" href="{{ url_for('admin.dataset_download', did=ds.id) }}">{{ m.icon('download') }} CSV</a>
+    <a class="btn sm" href="{{ url_for('admin.models') }}">Train a model on it</a></div>
+</div>
+<div class="stack">
+  <div class="tiles4">
+    <div><div class="k">Rows in the file</div><div class="v">{{ i.rows | num }}</div><div class="s">{{ i.columns }} columns</div></div>
+    <div><div class="k">Usable rows</div><div class="v">{{ c.rows_out | num }}</div><div class="s">{{ ((c.rows_out / c.rows_in) * 100) | round(1) }}% kept</div></div>
+    <div><div class="k">Empty cells</div><div class="v">{{ i.missing_total | num }}</div><div class="s">in the raw file</div></div>
+    <div><div class="k">Repeated rows</div><div class="v">{{ i.duplicates | num }}</div><div class="s">in the raw file</div></div>
+  </div>
+  <div class="cols">
+    <section class="panel s7">
+      <h2>Cleaning log</h2><p>What preprocessing did to this file, in order.</p>
+      <ol class="log">
+        <li><span>Category spellings standardised<small>"poly", "POLYTECHNIC" and "Polytechnic " all become "Polytechnic".</small></span><b>{{ (c.institution_spellings_fixed + c.category_spellings_fixed) | num }}</b></li>
+        <li><span>Repeated rows dropped</span><b>{{ c.duplicates_removed | num }}</b></li>
+        <li><span>Rows dropped for lacking a final CGPA or institution type<small>A record with no outcome cannot teach the tree anything.</small></span><b>{{ (c.rows_without_target_removed + c.rows_with_invalid_target_removed) | num }}</b></li>
+        <li><span>Impossible values blanked<small>Attendance over 100%, negative hours, GPA above the scale.</small></span><b>{{ c.invalid_values_set_missing | num }}</b></li>
+        <li><span>Blanks handed to the training pipeline<small>Filled with the median (numbers) or most common value (categories), learned from the training part only.</small></span><b>{{ c.missing_to_impute_total | num }}</b></li>
+      </ol>
+    </section>
+    <section class="panel s5">
+      <h2>Columns not given to the model</h2><p>Feature selection, with reasons.</p>
+      <ul class="why">{% for col, why in excluded.items() %}<li><code>{{ col }}</code>{{ why }}</li>{% endfor %}</ul>
+      <h2 style="font-size:1.05rem;margin-top:20px">By institution type</h2>
+      <dl class="kv">{% for t, n in report.summary.by_type.items() %}<div><dt>{{ t }}</dt><dd>{{ n | num }}</dd></div>{% endfor %}</dl>
+    </section>
+    <section class="s12"><h2 style="font-size:1.25rem">Column by column</h2>
+      <div class="table"><table class="t mini">
+        <thead><tr><th>Column</th><th>Kind</th><th class="r">Empty</th><th class="r">Distinct</th><th>Used as</th></tr></thead>
+        <tbody>{% set fnames = features | map(attribute='name') | list %}
+        {% for col in i.column_info %}<tr><td><code>{{ col.name }}</code></td><td>{{ 'text' if 'str' in col.dtype or 'object' in col.dtype else 'number' }}</td><td class="r">{{ col.missing | num }}</td><td class="r">{{ col.unique | num }}</td>
+          <td>{% if col.name in fnames %}Input{% elif col.name == 'final_cgpa' %}Source of the target{% else %}Left out{% endif %}</td></tr>{% endfor %}</tbody>
+      </table></div></section>
+    <section class="s12"><h2 style="font-size:1.25rem">The first ten rows, untouched</h2>
+      <div class="table"><table class="t mini">
+        <thead><tr>{% for col in columns %}<th>{{ col }}</th>{% endfor %}</tr></thead>
+        <tbody>{% for row in rows %}<tr>{% for v in row %}<td>{{ v }}</td>{% endfor %}</tr>{% endfor %}</tbody>
+      </table></div></section>
+  </div>
+  {% if not models %}
+  <form method="post" action="{{ url_for('admin.dataset_delete', did=ds.id) }}" data-confirm="Delete this dataset? This cannot be undone.">{{ m.csrf() }}
+    <button class="btn red sm" type="submit">{{ m.icon('trash') }} Delete this dataset</button></form>
+  {% endif %}
+</div>
+{% endblock %}

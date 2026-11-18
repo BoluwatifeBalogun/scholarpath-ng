@@ -1,0 +1,22 @@
+{% extends "public.html" %}
+{% block title %}Create account | {{ app_name }}{% endblock %}
+{% macro err(name) %}{% if errors.get(name) %}<p class="error" id="{{ name }}-error">{{ m.icon('alert') }}{{ errors[name] }}</p>{% endif %}{% endmacro %}
+{% block main %}
+<div class="auth"><form class="auth-card" method="post" novalidate>
+  {{ m.csrf() }}
+  <h1>Create account</h1>
+  <p class="muted">Already registered? <a href="{{ url_for('auth.login') }}">Sign in</a>. Your account keeps every prediction you make.</p>
+  <div class="field {% if errors.get('name') %}invalid{% endif %}"><label for="name">Full name</label>
+    <input class="input" id="name" name="name" autocomplete="name" value="{{ form.get('name', '') }}" required>{{ err('name') }}</div>
+  <div class="field {% if errors.get('email') %}invalid{% endif %}"><label for="email">Email</label>
+    <input class="input" id="email" name="email" type="email" autocomplete="email" value="{{ form.get('email', '') }}" required>{{ err('email') }}</div>
+  <div class="field {% if errors.get('occupation') %}invalid{% endif %}"><span class="label" id="occ-label">You are a</span>
+    <div class="tiles keep" role="radiogroup" aria-labelledby="occ-label">
+      {% for o in occupations %}<label><input type="radio" name="occupation" value="{{ o }}" {% if form.get('occupation', 'Student') == o %}checked{% endif %}>{{ o }}</label>{% endfor %}
+    </div>{{ err('occupation') }}</div>
+  <div class="field {% if errors.get('password') %}invalid{% endif %}"><label for="password">Password</label>
+    <input class="input" id="password" name="password" type="password" autocomplete="new-password" aria-describedby="pw-help" required>
+    <p class="help" id="pw-help">8 characters or more.</p>{{ err('password') }}</div>
+  <button class="btn yellow" type="submit" style="width:100%">Create account</button>
+</form></div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "app.html" %}
+{% block title %}Datasets | {{ app_name }}{% endblock %}
+{% block main %}
+<div class="page-head"><div><h1>Datasets</h1>
+  <p>Student records the tree can be trained on. A file is inspected and cleaned the moment it is uploaded, and the report is kept with it.</p></div></div>
+<div class="cols">
+  <section class="panel s5">
+    <h2>Add a dataset</h2><p>CSV, one row per student. Columns that are not needed are ignored.</p>
+    {% if error %}<div class="callout bad" role="alert" style="margin-bottom:16px">{{ m.icon('alert') }}<p>{{ error }}</p></div>{% endif %}
+    <form method="post" enctype="multipart/form-data">
+      {{ m.csrf() }}
+      <div class="field"><label for="ds-name">Name</label>
+        <input class="input" id="ds-name" name="name" maxlength="160" placeholder="2025/2026 session records"></div>
+      <div class="field"><label for="ds-note">Where it came from <span class="muted" style="font-weight:400">(optional)</span></label>
+        <input class="input" id="ds-note" name="note" maxlength="300" placeholder="Exams and records unit"></div>
+      <label class="drop" id="drop">{{ m.icon('upload') }}<b>Choose a CSV file</b><span class="muted small" id="drop-name">or drop one here, 8 MB at most</span>
+        <input type="file" name="file" accept=".csv,text/csv" required></label>
+      <div class="actions" style="margin-top:16px">
+        <button class="btn yellow" type="submit">Upload and check</button>
+        <a class="btn line" href="{{ url_for('admin.dataset_template') }}">{{ m.icon('download') }} Template</a>
+      </div>
+    </form>
+    <details style="margin-top:18px"><summary>Columns the file must have</summary>
+      <div class="table"><table class="t mini"><thead><tr><th>Column</th><th>Allowed</th></tr></thead>
+        <tbody>{% for f in features %}<tr><td><code>{{ f.name }}</code></td><td>{% if f.choices %}{{ f.choices | join(', ') }}{% else %}{{ f.min | g }} to {{ f.max | g }}{% endif %}</td></tr>{% endfor %}
+          <tr><td><code>{{ target }}</code></td><td>Final CGPA on the institution's scale</td></tr></tbody></table></div>
+    </details>
+  </section>
+  <section class="s7">
+    <div class="table"><table class="t">
+      <thead><tr><th>Dataset</th><th class="r">Rows</th><th class="r">Usable</th><th class="r">Models</th><th>Added</th></tr></thead>
+      <tbody>{% for d in items %}<tr>
+        <td><a class="lead" href="{{ url_for('admin.dataset', did=d.id) }}">{{ d.name }}</a>{% if d.simulated %}<br><span class="tag sim">Simulated</span>{% endif %}</td>
+        <td class="r">{{ d.rows_raw | num }}</td><td class="r">{{ d.rows_clean | num }}</td><td class="r">{{ d.models | length }}</td>
+        <td class="muted">{{ d.created_at | when }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+  </section>
+</div>
+{% endblock %}

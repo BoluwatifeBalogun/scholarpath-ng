@@ -1,0 +1,50 @@
+{% extends "app.html" %}
+{% block title %}Models | {{ app_name }}{% endblock %}
+{% block main %}
+<div class="page-head"><div><h1>Models</h1>
+  <p>Every trained Decision Tree is kept as a version. Train, read the evaluation, then choose which one answers predictions.</p></div></div>
+<div class="cols">
+  <section class="panel s5">
+    <h2>Train a version</h2><p>The model in use stays in use until you switch.</p>
+    {% if error %}<div class="callout bad" role="alert" style="margin-bottom:16px">{{ m.icon('alert') }}<p>{{ error }}</p></div>{% endif %}
+    <form method="post" data-busy="Training, please wait">
+      {{ m.csrf() }}
+      <div class="field"><label for="dataset_id">Dataset</label>
+        <select class="input" id="dataset_id" name="dataset_id">{% for d in datasets %}<option value="{{ d.id }}" {% if form.dataset_id == d.id %}selected{% endif %}>{{ d.name }} ({{ d.rows_clean | num }})</option>{% endfor %}</select></div>
+      <label class="check"><input type="checkbox" name="tune" id="tune" {% if form.tune %}checked{% endif %}>
+        <span><b>Search for the best settings</b><br><span class="muted small">Tries {{ grid['tree__criterion'] | length * grid['tree__max_depth'] | length * grid['tree__min_samples_leaf'] | length }} combinations with 5-fold cross-validation and keeps the one with the highest macro F1. The three settings below are then ignored.</span></span></label>
+      <div id="manual">
+        <div class="field"><span class="label" id="crit-label">Split quality measure</span>
+          <div class="tiles keep" style="grid-template-columns:1fr 1fr" role="radiogroup" aria-labelledby="crit-label">
+            <label><input type="radio" name="criterion" value="gini" {% if form.criterion == 'gini' %}checked{% endif %}>Gini impurity</label>
+            <label><input type="radio" name="criterion" value="entropy" {% if form.criterion == 'entropy' %}checked{% endif %}>Entropy</label>
+          </div></div>
+        <div class="grid2">
+          <div class="field"><label for="max_depth">Deepest level allowed</label>
+            <input class="input" id="max_depth" name="max_depth" type="number" min="2" max="20" value="{{ form.max_depth }}">
+            <p class="help">2 to 20</p></div>
+          <div class="field"><label for="min_samples_leaf">Fewest records in a leaf</label>
+            <input class="input" id="min_samples_leaf" name="min_samples_leaf" type="number" min="1" max="200" value="{{ form.min_samples_leaf }}">
+            <p class="help">1 to 200</p></div>
+        </div>
+      </div>
+      <div class="field"><label for="test_pct">Records set aside for testing</label>
+        <div class="unit-wrap"><input class="input" id="test_pct" name="test_pct" type="number" min="10" max="40" value="{{ form.test_pct }}"><span class="unit">%</span></div>
+        <p class="help">10 to 40. Stratified, so each class appears in both parts.</p></div>
+      <button class="btn yellow" type="submit" {% if not datasets %}disabled{% endif %}>Train</button>
+    </form>
+  </section>
+  <section class="s7">
+    {% if items %}
+    <div class="table"><table class="t">
+      <thead><tr><th>Version</th><th>Settings</th><th class="r">Accuracy</th><th class="r">Macro F1</th><th>Trained</th></tr></thead>
+      <tbody>{% for mv in items %}{% set p = mv.params %}<tr>
+        <td class="nw"><a class="lead" href="{{ url_for('admin.model', mid=mv.id) }}">Version {{ mv.version }}</a><br>{% if mv.is_active %}<span class="tag on">In use</span>{% else %}<span class="tag">Standby</span>{% endif %}</td>
+        <td class="wide">{{ p.criterion | capitalize }}, depth {{ p.max_depth }}, leaf {{ p.min_samples_leaf }}<br><span class="muted small">{{ mv.dataset.name }}</span></td>
+        <td class="r">{{ mv.accuracy | pct }}</td><td class="r">{{ mv.macro_f1 | pct }}</td>
+        <td class="muted">{{ mv.created_at | when }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<div class="empty"><h2>No versions yet</h2><p>Train the first one with the form.</p></div>{% endif %}
+  </section>
+</div>
+{% endblock %}

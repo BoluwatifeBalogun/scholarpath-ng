@@ -1,0 +1,130 @@
+{% extends "public.html" %}
+{% block title %}{{ app_name }} | {{ app_tagline }}{% endblock %}
+{% block progress %}<div class="progress" id="progress" aria-hidden="true"></div>{% endblock %}
+{% block main %}
+<section class="hero">
+  <div class="wrap hero-in">
+    <div>
+      <h1><span>Predict the</span><span>class of result</span><span>before exams.</span></h1>
+      <p class="lede">ScholarPath reads a student's academic record and study conditions, then a Decision Tree trained on tertiary records from across Nigeria says which class of result that student is on course for, and why.</p>
+      <div class="actions">
+        <a class="btn yellow" href="{{ url_for('predict.new') if user else url_for('auth.register') }}">{{ 'Start a prediction' if user else 'Create an account' }} {{ m.icon('arrow') }}</a>
+        <a class="btn line" href="#steps">How it works</a>
+      </div>
+    </div>
+
+    <div class="demo" id="demo" data-url="{{ url_for('public.demo') }}"
+         data-grading='{{ {"University": {"scale": 5, "labels": GRADING["University"]["bands"] | map(attribute=1) | list},
+                           "Polytechnic": {"scale": 4, "labels": GRADING["Polytechnic"]["bands"] | map(attribute=1) | list},
+                           "College of Education": {"scale": 5, "labels": GRADING["College of Education"]["bands"] | map(attribute=1) | list}} | tojson }}'>
+      <div class="demo-head"><h2>Try the trained model</h2><span class="live">Live</span></div>
+      <div class="pick" role="radiogroup" aria-label="Institution type">
+        {% for t in INSTITUTION_TYPES %}<label><input type="radio" name="demo-type" value="{{ t }}" {% if loop.first %}checked{% endif %}>{{ t }}</label>{% endfor %}
+      </div>
+      <div class="slide"><label for="d-gpa">Previous GPA</label><output id="d-gpa-out" for="d-gpa">3.40 of 5</output>
+        <input type="range" id="d-gpa" min="0" max="5" step="0.05" value="3.4"></div>
+      <div class="slide"><label for="d-att">Lecture attendance</label><output id="d-att-out" for="d-att">78%</output>
+        <input type="range" id="d-att" min="0" max="100" step="1" value="78"></div>
+      <div class="slide"><label for="d-car">Continuous assessment</label><output id="d-car-out" for="d-car">18 of 30</output>
+        <input type="range" id="d-car" min="0" max="30" step="0.5" value="18"></div>
+      <div class="verdict" aria-live="polite">
+        <p class="k">The tree predicts</p>
+        <p class="v" id="d-label">Move a slider</p>
+        <div class="scale5" id="d-scale" style="--pos: 3">
+          <span class="mark"></span>
+          <i class="c5"></i><i class="c4"></i><i class="c3"></i><i class="c2"></i><i class="c1"></i>
+        </div>
+        <div class="scale5-labels" id="d-labels">
+          {% for b in GRADING['University']['bands'] | reverse %}<span>{{ b[1] }}</span>{% endfor %}
+        </div>
+      </div>
+      <p class="note">This calls the real model. The other nine inputs are held at typical values, so treat it as a taste of the full form.</p>
+    </div>
+  </div>
+</section>
+
+<div class="strip wrap" style="width:100%;max-width:none;padding:0">
+  {% if report %}
+  <div><b data-count="{{ dataset.rows_clean }}">{{ dataset.rows_clean | num }}</b><span>training records after cleaning</span></div>
+  <div><b data-count="{{ ds_report.summary.states }}">{{ ds_report.summary.states }}</b><span>states covered, counting the FCT</span></div>
+  <div><b data-count="{{ (report.metrics.accuracy * 100) | round(1) }}" data-suffix="%">{{ report.metrics.accuracy | pct }}</b><span>accuracy on {{ report.split.test | num }} unseen records</span></div>
+  <div><b data-count="{{ features | length }}">{{ features | length }}</b><span>inputs, none of them personal</span></div>
+  {% endif %}
+</div>
+
+<section class="sec" id="steps">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>From a record to a reasoned prediction</h2>
+      <p>The same five steps run every time. The fourth is the Decision Tree itself; the others make sure it is only ever asked a fair question.</p>
+    </div>
+    <ol class="five" id="five">
+      <li><h3>Enter</h3><p>Fill in twelve values about the programme, the record so far and study habits.</p></li>
+      <li><h3>Validate</h3><p>Blank, non-numeric and out-of-range values are caught, with a message beside the field.</p></li>
+      <li><h3>Prepare</h3><p>Categories are encoded and GPA is rescaled, in the same column order used for training.</p></li>
+      <li><h3>Classify</h3><p>The saved tree asks one threshold question per node, from the root down to a leaf.</p></li>
+      <li><h3>Explain</h3><p>You get the class of result, the questions that led to it, and what to work on.</p></li>
+    </ol>
+  </div>
+</section>
+
+<section class="sec chalk" id="grading">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>Results in your institution's own words</h2>
+      <p>The tree predicts one of five tiers. Each kind of institution names those tiers differently and sets them on its own grade-point scale.</p>
+    </div>
+    <div class="grade3">
+      {% for t in INSTITUTION_TYPES %}
+      <article class="grade">
+        <header><h3>{{ t }}</h3><span>{{ GRADING[t].scale | g }}-point, {{ GRADING[t].body }}</span></header>
+        <ol>{% for b in bands_table(t) %}<li class="c{{ b.tier }}"><i></i><b>{{ b.label }}</b><span>{{ '%.2f' | format(b.min) }} to {{ '%.2f' | format(b.max) }}</span></li>{% endfor %}</ol>
+      </article>
+      {% endfor %}
+    </div>
+  </div>
+</section>
+
+<section class="sec" id="inputs">
+  <div class="wrap">
+    <div class="sec-head">
+      <h2>What goes in, and what is kept out</h2>
+      <p>Only academic record and study conditions reach the model. Identity and location are removed before training.</p>
+    </div>
+    <div class="duo">
+      <div class="box">
+        <h3>The twelve inputs</h3>
+        <ol class="inputs">{% for f in features %}<li>{{ f.label }}</li>{% endfor %}</ol>
+      </div>
+      <div class="box black">
+        <h3>Removed before training</h3>
+        <ul class="out">{% for col, why in excluded.items() %}<li><code>{{ col }}</code>{{ why }}</li>{% endfor %}</ul>
+      </div>
+      {% if ds_report %}
+      <div class="box">
+        <h3>Records by geopolitical zone</h3>
+        {% set zmax = ds_report.summary.by_zone.values() | max %}
+        <ul class="zones">{% for zone, n in ds_report.summary.by_zone | dictsort %}<li title="{{ zone }}: {{ n }} records"><span>{{ zone }}</span><span class="t"><span class="f" style="--w: {{ (n / zmax * 100) | round(1) }}%"></span></span><span class="v">{{ n | num }}</span></li>{% endfor %}</ul>
+      </div>
+      {% endif %}
+      {% if report %}
+      <div class="box yellow">
+        <h3>How far to trust a prediction</h3>
+        <p>On {{ report.split.test | num }} records the model had never seen, it named the right class {{ report.metrics.accuracy | pct }} of the time. Of its misses, {{ report.metrics.adjacent_error_share | pct(1) }} were out by a single tier.</p>
+        <p style="margin:0"><strong>Use it as an early signal that someone should look closer, never as a verdict.</strong></p>
+      </div>
+      {% endif %}
+    </div>
+    {% if dataset and dataset.simulated %}
+    <div class="callout" style="margin-top:18px">{{ m.icon('info') }}<p><strong>The training records shipped with this system are simulated.</strong> No public dataset of student records covering every Nigerian tertiary institution was available, so the bundled data is generated, with realistic noise and errors. The accuracy above describes that data. An administrator can upload real institutional records and retrain.</p></div>
+    {% endif %}
+  </div>
+</section>
+
+<section class="band">
+  <div class="wrap band-in">
+    <div><h2>Run a full prediction</h2><p>All twelve inputs, the full decision route, recommendations and a PDF you can keep.</p></div>
+    <a class="btn" href="{{ url_for('predict.new') if user else url_for('auth.register') }}">{{ 'Open the form' if user else 'Create an account' }} {{ m.icon('arrow') }}</a>
+  </div>
+</section>
+{% endblock %}

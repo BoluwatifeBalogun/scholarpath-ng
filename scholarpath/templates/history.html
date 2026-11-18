@@ -1,0 +1,29 @@
+{% extends "app.html" %}
+{% block title %}Saved predictions | {{ app_name }}{% endblock %}
+{% block main %}
+<div class="page-head">
+  <div><h1>Saved predictions</h1>
+    <p>{% if user.is_admin %}Every prediction made by every account.{% else %}Each prediction you make is kept here.{% endif %}</p></div>
+  <a class="btn yellow" href="{{ url_for('predict.new') }}">{{ m.icon('plus') }} New prediction</a>
+</div>
+<nav class="chips" aria-label="Show">
+  <a href="{{ url_for('predict.history') }}" {% if not tier %}aria-current="true"{% endif %}>Everything</a>
+  {% for t in [1, 2, 3, 4, 5] %}<a class="c{{ t }}" href="{{ url_for('predict.history', tier=t) }}" {% if tier == t %}aria-current="true"{% endif %}><i></i>{{ TIER_MEANING[t].split(',')[0] | replace(' standing', '') }}</a>{% endfor %}
+</nav>
+{% if items %}
+<ul class="rows">
+  {% for p in items %}<li><a href="{{ url_for('predict.result', pid=p.id) }}">
+    <span class="bar5 c{{ p.tier }}"></span>
+    <span><b>{{ p.reference or 'Unnamed student' }}</b><small>{{ p.institution_type }}</small></span>
+    <span><span class="cls">{{ p.label }}</span><br><small>{{ p.confidence | pct(0) }} of similar records</small></span>
+    <span class="meta"><small>{{ p.created_at | when }}{% if user.is_admin %}<br>by {{ p.user.name }}{% endif %}</small></span>
+    <span class="go">Open</span></a></li>{% endfor %}
+</ul>
+{% else %}
+<div class="empty">
+  <h2>{% if tier %}Nothing in this group{% else %}Nothing saved yet{% endif %}</h2>
+  <p>{% if tier %}Pick another group or show everything.{% else %}Run your first prediction and it will be listed here.{% endif %}</p>
+  <a class="btn yellow" href="{{ url_for('predict.new') }}">Start a prediction</a>
+</div>
+{% endif %}
+{% endblock %}
