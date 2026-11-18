@@ -35,6 +35,7 @@
 
 *, *::before, *::after { box-sizing: border-box; }
 html { -webkit-text-size-adjust: 100%; }
+html, body { overflow-x: clip; }
 body { margin: 0; font: 400 16.5px/1.55 var(--text); color: var(--ink); background: var(--white);
   -webkit-font-smoothing: antialiased; }
 a { color: var(--green-dark); text-underline-offset: 3px; text-decoration-thickness: 1.5px; }
@@ -91,6 +92,9 @@ svg.i { width: 20px; height: 20px; flex: none; }
 .bar nav a:hover { background: var(--chalk); }
 .bar nav a.cta { background: var(--ink); color: var(--white); }
 .bar nav a.cta:hover { background: var(--green); }
+.bar nav .short { display: none; }
+.bar .brand { min-width: 0; }
+.bar nav { flex: none; }
 .progress { position: fixed; left: 0; top: 0; height: 4px; width: 100%; background: var(--yellow); z-index: 60;
   transform: scaleX(0); transform-origin: left; }
 .foot { background: var(--ink); color: #C9CCC3; padding: 44px 0; font-size: .92rem; }
@@ -577,3 +581,11 @@ details > summary { cursor: pointer; font-weight: 700; padding: 8px 0; }
 }
 @media print { .side, .dock, .mobile-top, .actions, .flashes, .submit-bar, .bar, .foot { display: none !important; }
   .shell { display: block; } .content { background: #fff; } }
+
+/* narrow phones (360px and below is common on Android) */
+@media (max-width: 430px) {
+  .bar nav .long { display: none; }
+  .bar nav .short { display: inline; }
+  .bar .brand { font-size: .9rem; }
+  .bar .brand span { overflow: hidden; text-overflow: ellipsis; }
+}

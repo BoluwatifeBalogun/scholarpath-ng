@@ -14,7 +14,7 @@
         <a class="cta" href="{{ url_for('admin.overview') if user.is_admin else url_for('predict.new') }}">Open the app</a>
       {% else %}
         <a href="{{ url_for('auth.login') }}">Sign in</a>
-        <a class="cta" href="{{ url_for('auth.register') }}">Create account</a>
+        <a class="cta" href="{{ url_for('auth.register') }}"><span class="long">Create account</span><span class="short">Sign up</span></a>
       {% endif %}
     </nav>
   </div>
